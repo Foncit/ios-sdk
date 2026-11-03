@@ -1,75 +1,94 @@
-# Foncit Teléfono — SDK iOS (Versión 2)
+# Foncit Teléfono — SDK para iOS
 
-Teléfono completo (teclado, recientes, llamada entrante y en curso) para cualquier app iOS 15+ (SwiftUI o UIKit).
-Usa Linphone con **SIP por TLS (5061)** y **voz cifrada SRTP**, la pantalla de llamadas del sistema (**CallKit**) y avisos **VoIP (PushKit)** para que suene con la app cerrada.
+SDK completo y listo para producción que integra un teléfono VoIP empresarial (marcador telefónico, historial de recientes, control de llamadas entrantes y salientes con **CallKit**) en cualquier app iOS (SwiftUI o UIKit).
 
-> **Novedad en V2**: Linphone viene **100% integrado dentro del SDK**.  
-> El cliente final ya **no** tiene que agregar repositorios externos de Gitlab ni descargar Linphone por separado en su app. Al importar este repo o pod, Linphone ya viene incluido y listo para usar.
+Usa el motor de llamadas Linphone con **SIP seguro por TLS (puerto 5061)**, **voz cifrada SRTP** y notificaciones push **VoIP (PushKit)** de alta prioridad para recibir llamadas incluso con la app cerrada o el dispositivo bloqueado.
 
----
-
-## Cómo funciona
-
-```
-Panel de Foncit en tu web ──UsuariosExternos──▶ Foncit guarda tus usuarios; ahí les asignas extensiones ("Asignada a")
-App (SDK) ──IdExterno + bundle──▶ TelefonoMovilWS: iniciarUsuario ──▶ token permanente
-   └──Bearer token──▶ TelefonoMovilWS: mostrarTelefono / registrarDispositivo / mostrarLlamadas
-Llamada entrante ──▶ Foncit manda aviso VoIP (Apple) ──▶ el SDK la muestra en CallKit y conecta la línea
-```
-
-En **Foncit > Complementos > Plataformas** agrega la app como **iOS** con su **bundle** y tu **Team ID**, y en "Llamadas con la app cerrada" sube la **llave .p8** de Apple (Apple Push Notifications service) con su Key ID.
+> **Motor Linphone Integrado**: Linphone y sus dependencias ya vienen precompilados y empaquetados dentro del SDK. No requiere descargas externas, repositorios adicionales de Gitlab ni configuraciones de compiladores C/C++.
 
 ---
 
-## 1. Agregar la librería al proyecto del cliente
+## 📋 Requisitos del Proyecto
 
-Puedes integrar el SDK de dos formas:
+* **iOS 15.0** o superior
+* **Xcode 15.0** o superior
+* **Swift 5.9** o superior
+* Cuenta y plataforma configuradas en [Foncit](https://foncit.com):
+  * **Bundle Identifier** y **Team ID** registrados en *Foncit > Complementos > Plataformas*.
+  * Llave APNs **`.p8`** (con Key ID) subida en la sección de llamadas con app cerrada.
 
-### Opción A: Swift Package Manager (Recomendado - Git directo)
+---
 
-1. En Xcode: **File > Add Package Dependencies...**
-2. Ingresa la URL de este repositorio Git: `https://github.com/tu-organizacion/Foncit_sdk.git` (o agrega la carpeta local).
-3. Selecciona la versión `2.0.0` y marca la librería **FoncitTelefono**.
-4. ¡Listo! Linphone y el SDK se vinculan automáticamente sin descargas manuales.
+## 🚀 Paso 1: Instalación del SDK
+
+Puedes integrar la librería en tu app mediante **Swift Package Manager** (recomendado por Apple) o mediante **CocoaPods**.
+
+### Opción A: Swift Package Manager (Recomendado)
+
+1. Abre tu proyecto en **Xcode**.
+2. En la barra de menús, selecciona: **File** > **Add Package Dependencies...**
+3. En la barra de búsqueda superior derecha, pega la URL del repositorio:
+   ```text
+   https://github.com/Foncit/ios-sdk.git
+   ```
+4. En **Dependency Rule**, selecciona:
+   * **Exact Version** o **Up to Next Minor**: `1.0.1` (o la versión que desees).
+5. Haz clic en **Add Package** y asegúrate de marcar la casilla **FoncitTelefono** en tu Target principal.
+6. ¡Listo! Xcode vinculará el SDK automáticamente.
 
 ---
 
 ### Opción B: CocoaPods
 
-En el `Podfile` de la app cliente (ya **no** requiere la fuente de Gitlab de Linphone):
+Si tu proyecto utiliza CocoaPods, agrega la siguiente línea a tu archivo `Podfile`:
 
 ```ruby
 platform :ios, '15.0'
 
 target 'TuApp' do
   use_frameworks!
-  pod 'FoncitTelefono', :podspec => 'https://stg-ios.foncit.com/FoncitTelefono/2.0.0/FoncitTelefono.podspec'
+  
+  # SDK Foncit con Linphone integrado
+  pod 'FoncitTelefono', :git => 'https://github.com/Foncit/ios-sdk.git', :tag => '1.0.1'
 end
 ```
 
+Luego ejecuta en la terminal de tu proyecto:
 ```bash
-pod install
+pod install --repo-update
 ```
 
 ---
 
-## 2. Ajustes obligatorios de Apple (Xcode)
+## ⚙️ Paso 2: Capacidades y Permisos en Xcode
 
-Apple exige que la app principal declare estos permisos:
+Para que iOS permita recibir llamadas con la pantalla bloqueada y usar el micrófono, es obligatorio habilitar estas opciones en el proyecto de tu app:
 
-- **Signing & Capabilities**:
-  - `Push Notifications`
-  - `Background Modes` activando:
-    - **Voice over IP**
-    - **Audio, AirPlay, and Picture in Picture**
-- **Info.plist**:
-  - `NSMicrophoneUsageDescription` (ej. *"Para hacer y recibir llamadas"*).
+### 1. Activar Capacidades (Capabilities)
+1. En Xcode, selecciona tu proyecto en el navegador de la izquierda y entra a tu **Target**.
+2. Ve a la pestaña **Signing & Capabilities**.
+3. Haz clic en **`+ Capability`** y agrega:
+   * **Push Notifications**
+4. Vuelve a hacer clic en **`+ Capability`** y agrega:
+   * **Background Modes**
+   * Dentro de Background Modes, marca las casillas:
+     * ☑ **Voice over IP** (para recibir llamadas con app cerrada vía PushKit).
+     * ☑ **Audio, AirPlay, and Picture in Picture** (para mantener la llamada activa en segundo plano).
+
+### 2. Permiso de Micrófono en `Info.plist`
+Abre tu archivo `Info.plist` (o la pestaña *Info* del Target) y agrega la siguiente clave:
+
+| Clave (Key) | Tipo | Valor sugerido |
+| :--- | :--- | :--- |
+| `Privacy - Microphone Usage Description` (`NSMicrophoneUsageDescription`) | String | *"Necesitamos acceso al micrófono para que puedas realizar y responder llamadas telefónicas."* |
 
 ---
 
-## 3. Activar avisos y configurar
+## 💻 Paso 3: Inicialización en el arranque de la app
 
-Al arrancar la app, **siempre** (iOS abre la app cerrada por un aviso de llamada y lo entrega aquí):
+Apple exige que el registro de avisos VoIP (`PushKit`) se active **inmediatamente al arrancar la app**, para poder procesar una llamada entrante cuando iOS despierta la app en segundo plano.
+
+### Si tu app es SwiftUI (`@main`):
 
 ```swift
 import SwiftUI
@@ -77,35 +96,168 @@ import FoncitTelefono
 
 @main
 struct MiApp: App {
-    init() { FoncitTelefono.activarAvisos() }
-    var body: some Scene { WindowGroup { ContentView() } }
+    
+    init() {
+        // Obligatorio: activar escucha de llamadas entrantes
+        FoncitTelefono.activarAvisos()
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
 }
 ```
 
-Cuando ya sabes quién es el usuario (y cada vez que cambie):
+### Si tu app usa UIKit (`AppDelegate`):
 
 ```swift
+import UIKit
+import FoncitTelefono
+
+@main
+class AppDelegate: UIResponder, UIApplicationDelegate {
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        // Obligatorio: activar escucha de llamadas entrantes
+        FoncitTelefono.activarAvisos()
+        return true
+    }
+}
+```
+
+---
+
+## 🔑 Paso 4: Identificar al Usuario (Login)
+
+Cuando el usuario inicia sesión en tu aplicación (o cuando ya conoces su identificador externo en Foncit, ej. `AgCuentaUsuario`), configúralo en el SDK:
+
+```swift
+// Configuración básica (Ambiente Producción por defecto):
+FoncitTelefono.configurar(usuario: "ID_DE_TU_USUARIO")
+
+// O con ajustes de ambiente y color corporativo:
 FoncitTelefono.configurar(
-    usuario: agCuentaUsuario,
-    ajustes: AjustesFoncit(ambiente: .pruebas, colorPrincipal: 0xFFE9791E)
+    usuario: "ID_DE_TU_USUARIO",
+    ajustes: AjustesFoncit(
+        ambiente: .pruebas,          // .produccion o .pruebas
+        colorPrincipal: 0xFFE9791E   // Color hexadecimal principal
+    )
 )
 ```
 
-`AjustesFoncit`: `ambiente` (.produccion / .pruebas), `colorPrincipal`, `oscuro` (nil = el del sistema), `coloresClaro` y `coloresOscuro` (`ColoresFoncit`: principal, fondo, superficie, superficieVariante, texto, textoSecundario).  
-Para cambiar tema o colores al momento: `FoncitTelefono.cambiarTema(ajustes)`.
+> **Nota**: El usuario no necesita contraseña SIP; el SDK negocia automáticamente las credenciales seguras con el servidor de Foncit a través de su identificador de cuenta.
 
 ---
 
-## 4. Mostrar el teléfono (una línea)
+## 📱 Paso 5: Mostrar la Pantalla del Teléfono
+
+El SDK incluye una pantalla completa y estilizada con teclado numérico, selector de extensiones, historial de llamadas y llamada en curso.
+
+### En SwiftUI:
+
+Puedes colocarla directamente en una vista, dentro de un `TabView`, o presentarla en una hoja modal (`sheet`):
 
 ```swift
-FoncitTelefonoPantalla()                // SwiftUI
-FoncitTelefonoControlador()             // UIKit (UIViewController)
+import SwiftUI
+import FoncitTelefono
+
+struct PantallaPrincipalView: View {
+    @State private var mostrarTelefono = false
+
+    var body: some View {
+        Button(action: { mostrarTelefono = true }) {
+            Label("Abrir Teléfono", systemImage: "phone.fill")
+        }
+        .sheet(isPresented: $mostrarTelefono) {
+            // Vista completa del teléfono:
+            FoncitTelefonoPantalla()
+        }
+    }
+}
+```
+
+### En UIKit:
+
+Puedes presentarla como un `UIViewController` estándar:
+
+```swift
+import UIKit
+import FoncitTelefono
+
+class MiControlador: UIViewController {
+
+    @IBAction func abrirTelefonoPresionado(_ sender: Any) {
+        let telefonoVC = FoncitTelefonoControlador()
+        telefonoVC.modalPresentationStyle = .fullScreen
+        self.present(telefonoVC, animated: true)
+    }
+}
 ```
 
 ---
 
-## 5. Cerrar sesión en tu app
+## 🎨 Paso 6: Personalización Visual y Temas
+
+Puedes adaptar el aspecto del teléfono a la identidad visual de tu aplicación:
+
+```swift
+let temaPersonalizado = AjustesFoncit(
+    ambiente: .produccion,
+    colorPrincipal: 0xFF007AFF,  // Color de botones de llamada y acentos
+    oscuro: nil,                  // nil = sigue el modo del sistema; true = siempre oscuro; false = siempre claro
+    coloresClaro: ColoresFoncit(
+        principal: 0xFF007AFF,
+        fondo: 0xFFFFFFFF,
+        superficie: 0xFFF2F2F7,
+        superficieVariante: 0xFFE5E5EA,
+        texto: 0xFF000000,
+        textoSecundario: 0xFF8E8E93
+    ),
+    coloresOscuro: ColoresFoncit(
+        principal: 0xFF0A84FF,
+        fondo: 0xFF000000,
+        superficie: 0xFF1C1C1E,
+        superficieVariante: 0xFF2C2C2E,
+        texto: 0xFFFFFFFF,
+        textoSecundario: 0xFF8E8E93
+    )
+)
+
+// Cambiar tema dinámicamente:
+FoncitTelefono.cambiarTema(temaPersonalizado)
+```
+
+---
+
+## 📞 Paso 7: Operaciones Programáticas (Opcional)
+
+Si prefieres disparar llamadas o gestionar el teléfono sin usar la vista completa:
+
+```swift
+// Realizar una llamada directa a un número o extensión:
+FoncitTelefono.llamar("+525512345678")
+
+// Cambiar de extensión asignada:
+FoncitTelefono.seleccionarExtension("101")
+
+// Conectar manualmente el motor SIP:
+FoncitTelefono.iniciar()
+
+// Conocer el estado actual del teléfono:
+let estado = FoncitTelefono.estado
+print("Conexión: \(estado.registro) - Llamada: \(estado.llamada?.estado ?? .terminada)")
+```
+
+---
+
+## 🚪 Paso 8: Cierre de Sesión (Logout)
+
+Cuando el usuario cierre sesión en tu aplicación, invoca el método de desconexión. Esto dará de baja el token VoIP en la nube de Foncit para que el dispositivo deje de recibir llamadas de ese usuario:
 
 ```swift
 FoncitTelefono.cerrarSesion()
@@ -113,11 +265,24 @@ FoncitTelefono.cerrarSesion()
 
 ---
 
-## Revisar
+## 🔍 Depuración y Registro de Eventos (Logs)
 
-En la consola de Xcode filtra por `FoncitTelefono`:
-- `Token de avisos recibido`
-- `registrarDispositivo: true ...`
-- `Aviso de llamada recibido`
+Para comprobar el correcto funcionamiento en el simulador o celular físico:
 
-Las compilaciones de Debug se registran como sandbox de Apple (`Produccion = 0`) y las de Release / TestFlight / App Store como producción.
+1. Conecta el dispositivo y abre la consola de **Xcode** (o la app *Console.app* en macOS).
+2. En la barra de filtro escribe: `FoncitTelefono`.
+3. Verás los eventos principales del ciclo de vida:
+   * `Token de avisos recibido (ios, usuario guardado: true)`: El token VoIP de Apple se generó correctamente.
+   * `registrarDispositivo: true`: El dispositivo quedó registrado en la central telefónica de Foncit.
+   * `Aviso de llamada recibido`: Apple entregó la notificación VoIP y CallKit activó la pantalla de llamada.
+
+> **Diferencia Sandbox / Producción**:
+> * Compilaciones en modo **Debug**: Se registran automáticamente en el servidor APNs Sandbox de Apple (`Produccion = 0`).
+> * Compilaciones de **Release / TestFlight / App Store**: Se registran automáticamente en el servidor APNs de Producción de Apple (`Produccion = 1`).
+
+---
+
+## 🛡️ Soporte y Licencia
+
+Desarrollado y mantenido por **Foncit**. Todos los derechos reservados.  
+Para soporte técnico o dudas sobre la integración: [foncit.com](https://foncit.com).
