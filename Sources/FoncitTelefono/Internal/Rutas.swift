@@ -4,8 +4,8 @@ import Foundation
 enum Rutas {
     static func telefonoMovil(_ ambiente: Ambiente) -> URL {
         switch ambiente {
-        case .produccion: return URL(string: "https://foncit.com/WEBSERVICES/V1/TelefonoMovilWS.php")!
-        case .pruebas: return URL(string: "https://stg.foncit.com/WEBSERVICES/V1/TelefonoMovilWS.php")!
+        case .produccion: return URL(string: "https://webservices.foncit.com/V1/TelefonoMovilWS.php")!
+        case .pruebas: return URL(string: "https://stg-webservices.foncit.com/V1/TelefonoMovilWS.php")!
         }
     }
 
