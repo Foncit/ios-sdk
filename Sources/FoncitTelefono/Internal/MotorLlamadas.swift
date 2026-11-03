@@ -316,7 +316,7 @@ final class MotorLlamadas: ObservableObject {
     }
 
     func audioActivado(_ activo: Bool) {
-        core?.activateAudioSession(actived: activo)
+        core?.activateAudioSession(activated: activo)
     }
 
     func llamadaActual() -> Call? { core?.currentCall ?? core?.calls.first }
