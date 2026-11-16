@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import PushKit
 
 /**
@@ -31,6 +32,18 @@ public enum FoncitTelefono {
 
     /// Si ya se llamó a configurar
     public static var configurado: Bool { !usuario.isEmpty }
+
+    /// Avisa cada vez que termina una llamada (entrante o saliente), con su número, dirección, si se contestó y cuánto duró.
+    /// Sirve para registrarla en tu app, igual que el evento foncit:llamada-finalizada del teléfono web. Llega en el hilo principal.
+    public static let llamadasFinalizadas = PassthroughSubject<LlamadaFinalizada, Never>()
+
+    /// Si el usuario tiene extensiones de Foncit en este celular (las conectadas o las guardadas de la última vez).
+    /// Con true se puede marcar con llamar(numero); con false la app usa su procedimiento normal.
+    public static func tieneExtensiones() -> Bool {
+        guard configurado else { return false }
+        if !estado.extensiones.isEmpty { return true }
+        return !(Almacen.telefonos ?? []).isEmpty
+    }
 
     /**
      Configura el teléfono. Llámalo al abrir la app y cada vez que cambie el usuario.

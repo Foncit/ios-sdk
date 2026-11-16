@@ -71,7 +71,7 @@ public struct FoncitTelefonoPantalla: View {
             FoncitTelefono.iniciar()
         }
         .onChange(of: estado.llamada != nil) { hayLlamada in
-            llamadaAbierta = hayLlamada
+            llamadaAbierta = hayLlamada && !MotorLlamadas.compartido.pantallaGlobal
         }
         .fullScreenCover(isPresented: $llamadaAbierta) {
             LlamadaVista()

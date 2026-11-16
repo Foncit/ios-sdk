@@ -92,6 +92,22 @@ public struct EstadoTelefono: Equatable {
     public var sinExtensiones: Bool = false
 }
 
+/// Una llamada que acaba de terminar (los mismos datos que el evento foncit:llamada-finalizada del teléfono web)
+public struct LlamadaFinalizada {
+    /// Identificador único de la llamada (para no registrarla dos veces)
+    public var idLlamada: String
+    /// Número con el que se habló
+    public var numero: String
+    /// "saliente" o "entrante"
+    public var direccion: String
+    /// Si se llegó a hablar
+    public var contestada: Bool
+    /// Cuánto duró la conversación
+    public var duracionSegundos: Int
+    /// Cuándo empezó
+    public var fechaInicio: Date
+}
+
 /// Una llamada del historial de Foncit
 public struct LlamadaReciente: Identifiable {
     public let id = UUID()

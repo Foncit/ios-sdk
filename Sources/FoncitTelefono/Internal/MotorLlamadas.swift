@@ -13,6 +13,9 @@ final class MotorLlamadas: ObservableObject {
     /// Ajustes actuales; la pantalla los sigue en vivo (tema y colores)
     @Published var ajustes = AjustesFoncit()
 
+    /// La app puso foncitPantallaLlamada() en su raíz: la pantalla de llamada la muestra esa raíz y no FoncitTelefonoPantalla
+    var pantallaGlobal = false
+
     private(set) var core: Core?
     private var delegado: CoreDelegateStub?
 
@@ -105,6 +108,7 @@ final class MotorLlamadas: ObservableObject {
             /** Diagnóstico: por qué terminó la llamada (código y texto SIP, y cuánto duró) */
             let info = call.errorInfo
             ApiFoncit.registro.warning("Llamada terminada (\(state == .Error ? "error" : "fin", privacy: .public)): motivo \(String(describing: call.reason), privacy: .public), SIP \(info?.protocolCode ?? 0) \(info?.phrase ?? "", privacy: .public), avisos \(info?.warnings ?? "", privacy: .public), duración \(call.duration)s")
+            avisarFinalizada(call)
             LlamadasSistema.compartido.llamadaTerminada(call)
             if (core?.callsNb ?? 0) == 0 { estado.llamada = nil }
         case .Released:
@@ -112,6 +116,32 @@ final class MotorLlamadas: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Call-ID de las que ya se avisaron (End y Error pueden llegar para la misma llamada)
+    private var avisadas: [String] = []
+
+    /// Avisa una sola vez por llamada que terminó, con los datos para registrarla
+    private func avisarFinalizada(_ call: Call) {
+        let registro = call.callLog
+        let inicioSegundos = Int(registro?.startDate ?? 0)
+        let callId = registro?.callId ?? ""
+        let id = callId.isEmpty ? "\(numeroDe(call))-\(inicioSegundos)" : callId
+        if avisadas.contains(id) { return }
+        avisadas.append(id)
+        if avisadas.count > 50 { avisadas.removeFirst() }
+        let duracion = Int(call.duration)
+        let inicio = inicioSegundos > 0 ? Date(timeIntervalSince1970: TimeInterval(inicioSegundos)) : Date().addingTimeInterval(-Double(duracion))
+        let finalizada = LlamadaFinalizada(
+            idLlamada: id,
+            numero: numeroDe(call),
+            direccion: call.dir == .Incoming ? "entrante" : "saliente",
+            contestada: duracion > 0,
+            duracionSegundos: duracion,
+            fechaInicio: inicio
+        )
+        ApiFoncit.registro.info("Llamada finalizada: \(finalizada.direccion, privacy: .public), contestada \(finalizada.contestada, privacy: .public), \(finalizada.duracionSegundos, privacy: .public)s")
+        FoncitTelefono.llamadasFinalizadas.send(finalizada)
     }
 
     private func numeroDe(_ call: Call) -> String { call.remoteAddress?.username ?? "" }
