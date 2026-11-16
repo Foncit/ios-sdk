@@ -102,6 +102,9 @@ final class MotorLlamadas: ObservableObject {
         case .Paused, .PausedByRemote:
             actualizarLlamada(call, .enEspera)
         case .End, .Error:
+            /** Diagnóstico: por qué terminó la llamada (código y texto SIP, y cuánto duró) */
+            let info = call.errorInfo
+            ApiFoncit.registro.warning("Llamada terminada (\(state == .Error ? "error" : "fin", privacy: .public)): motivo \(String(describing: call.reason), privacy: .public), SIP \(info?.protocolCode ?? 0) \(info?.phrase ?? "", privacy: .public), avisos \(info?.warnings ?? "", privacy: .public), duración \(call.duration)s")
             LlamadasSistema.compartido.llamadaTerminada(call)
             if (core?.callsNb ?? 0) == 0 { estado.llamada = nil }
         case .Released:
@@ -281,10 +284,15 @@ final class MotorLlamadas: ObservableObject {
     func contestar(_ call: Call) {
         core?.configureAudioSession()
         /** Con el cifrado que trae la llamada (SRTP si la extensión lo tiene) */
-        if let parametros = try? core?.createCallParams(call: call) {
-            try? call.acceptWithParams(params: parametros)
-        } else {
-            try? call.accept()
+        do {
+            if let parametros = try? core?.createCallParams(call: call) {
+                try call.acceptWithParams(params: parametros)
+            } else {
+                try call.accept()
+            }
+        } catch {
+            /** Diagnóstico: Linphone no aceptó la llamada */
+            ApiFoncit.registro.error("No se pudo contestar la llamada: \(String(describing: error), privacy: .public)")
         }
     }
 

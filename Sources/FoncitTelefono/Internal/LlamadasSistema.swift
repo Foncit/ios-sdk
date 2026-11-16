@@ -108,7 +108,11 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
         let uuid = UUID()
         uuids[id] = uuid
         proveedor.reportNewIncomingCall(with: uuid, update: actualizacion(numero: numero, nombre: nombre)) { error in
-            if error != nil { MotorLlamadas.compartido.colgar(call) }
+            if let error = error {
+                /** Diagnóstico: iOS no dejó mostrar la llamada (No molestar, otra llamada activa, número bloqueado…); se cuelga */
+                ApiFoncit.registro.error("CallKit rechazó la llamada entrante: \(String(describing: error), privacy: .public)")
+                MotorLlamadas.compartido.colgar(call)
+            }
         }
     }
 
