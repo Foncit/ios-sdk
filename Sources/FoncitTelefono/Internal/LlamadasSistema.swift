@@ -1,6 +1,7 @@
 import Foundation
 import CallKit
 import AVFoundation
+import UIKit
 import linphonesw
 
 /// Llamadas en la pantalla del sistema (CallKit): timbre, pantalla bloqueada, audio y botones del sistema.
@@ -21,6 +22,8 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     private var rechazarPendiente = false
     /// Las que colgó el usuario (ya se le avisó a CallKit)
     private var colgadas: Set<UUID> = []
+    /// Call-ID de las llamadas que iOS no dejó mostrar en su pantalla (No molestar / modo de concentración): se atienden desde la app
+    private var sinSistema: Set<String> = []
 
     private override init() {
         let configuracion = CXProviderConfiguration()
@@ -109,11 +112,21 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
         }
         let uuid = UUID()
         uuids[id] = uuid
-        proveedor.reportNewIncomingCall(with: uuid, update: actualizacion(numero: numero, nombre: nombre)) { error in
+        proveedor.reportNewIncomingCall(with: uuid, update: actualizacion(numero: numero, nombre: nombre)) { [weak self] error in
             if let error = error {
-                /** Diagnóstico: iOS no dejó mostrar la llamada (No molestar, otra llamada activa, número bloqueado…); se cuelga */
+                /** Diagnóstico: iOS no dejó mostrar la llamada (No molestar, otra llamada activa, número bloqueado…) */
                 ApiFoncit.registro.error("CallKit rechazó la llamada entrante: \(String(describing: error), privacy: .public)")
-                MotorLlamadas.compartido.colgar(call)
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.uuids.removeValue(forKey: id)
+                    if UIApplication.shared.applicationState == .active {
+                        /** Con la app abierta la llamada sigue sonando en la pantalla de la app y se contesta desde ahí, sin CallKit */
+                        self.sinSistema.insert(id)
+                        ApiFoncit.registro.warning("La llamada se atiende desde la app (sin la pantalla del sistema)")
+                    } else {
+                        MotorLlamadas.compartido.colgar(call)
+                    }
+                }
             }
         }
     }
@@ -125,6 +138,10 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
 
     func llamadaTerminada(_ call: Call) {
         let id = call.callLog?.callId ?? ""
+        if sinSistema.remove(id) != nil {
+            MotorLlamadas.compartido.audioActivado(false)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
         guard let uuid = uuids.removeValue(forKey: id) else { return }
         if colgadas.remove(uuid) != nil { return }
         let razon: CXCallEndedReason = (call.dir == .Incoming && call.duration == 0) ? .unanswered : .remoteEnded
@@ -149,7 +166,15 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     }
 
     func contestar() {
-        if let uuid = uuidActual() { pedir(CXAnswerCallAction(call: uuid)) }
+        if let uuid = uuidActual() {
+            pedir(CXAnswerCallAction(call: uuid))
+        } else if let call = MotorLlamadas.compartido.llamadaActual() {
+            /** iOS no mostró esta llamada: se contesta directo y la app activa el audio (lo que haría CallKit) */
+            ApiFoncit.registro.warning("Se contesta desde la app (sin CallKit)")
+            MotorLlamadas.compartido.contestar(call)
+            try? AVAudioSession.sharedInstance().setActive(true)
+            MotorLlamadas.compartido.audioActivado(true)
+        }
     }
 
     func colgar() {
@@ -161,12 +186,20 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     }
 
     func silenciar() {
-        guard let uuid = uuidActual() else { return }
+        guard let uuid = uuidActual() else {
+            if let call = MotorLlamadas.compartido.llamadaActual() { MotorLlamadas.compartido.silenciar(call, !call.microphoneMuted) }
+            return
+        }
         pedir(CXSetMutedCallAction(call: uuid, muted: !(MotorLlamadas.compartido.estado.llamada?.silenciada ?? false)))
     }
 
     func espera() {
-        guard let uuid = uuidActual() else { return }
+        guard let uuid = uuidActual() else {
+            if let call = MotorLlamadas.compartido.llamadaActual() {
+                MotorLlamadas.compartido.espera(call, MotorLlamadas.compartido.estado.llamada?.estado != .enEspera)
+            }
+            return
+        }
         pedir(CXSetHeldCallAction(call: uuid, onHold: MotorLlamadas.compartido.estado.llamada?.estado != .enEspera))
     }
 
@@ -176,6 +209,7 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
         ApiFoncit.registro.warning("CallKit reinició el proveedor: se cuelgan las llamadas")
         MotorLlamadas.compartido.core?.calls.forEach { MotorLlamadas.compartido.colgar($0) }
         uuids.removeAll()
+        sinSistema.removeAll()
         pendiente = nil
         colgadas.removeAll()
     }
