@@ -94,6 +94,8 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
         let id = call.callLog?.callId ?? UUID().uuidString
         let numero = call.remoteAddress?.username ?? ""
         let nombre = call.remoteAddress?.displayName ?? ""
+        /** Diagnóstico: cómo está el estado cuando llega la llamada de Linphone (log: subsistema de Foncit) */
+        ApiFoncit.registro.warning("Llamada entrante de Linphone: aviso pendiente \(self.pendiente != nil, privacy: .public), contestar pendiente \(self.contestarPendiente, privacy: .public), rechazar pendiente \(self.rechazarPendiente, privacy: .public)")
         if let uuid = pendiente {
             pendiente = nil
             uuids[id] = uuid
@@ -171,6 +173,7 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     // MARK: CXProviderDelegate
 
     func providerDidReset(_ provider: CXProvider) {
+        ApiFoncit.registro.warning("CallKit reinició el proveedor: se cuelgan las llamadas")
         MotorLlamadas.compartido.core?.calls.forEach { MotorLlamadas.compartido.colgar($0) }
         uuids.removeAll()
         pendiente = nil
@@ -188,6 +191,7 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     }
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        ApiFoncit.registro.warning("CallKit pidió contestar: ligada a una llamada de Linphone \(self.llamadaDe(action.callUUID) != nil, privacy: .public), es la del aviso \(self.pendiente == action.callUUID, privacy: .public)")
         if let call = llamadaDe(action.callUUID) {
             MotorLlamadas.compartido.contestar(call)
         } else if pendiente == action.callUUID {
@@ -199,6 +203,7 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     }
 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        ApiFoncit.registro.warning("CallKit pidió colgar: ligada a una llamada de Linphone \(self.llamadaDe(action.callUUID) != nil, privacy: .public), es la del aviso \(self.pendiente == action.callUUID, privacy: .public)")
         colgadas.insert(action.callUUID)
         if let call = llamadaDe(action.callUUID) {
             MotorLlamadas.compartido.colgar(call)
