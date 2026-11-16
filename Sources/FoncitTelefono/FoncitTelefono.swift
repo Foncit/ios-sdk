@@ -110,7 +110,18 @@ public enum FoncitTelefono {
         guard configurado else { return }
         let limpio = numero.filter { $0.isNumber || $0 == "+" || $0 == "*" || $0 == "#" }
         guard !limpio.isEmpty, MotorLlamadas.compartido.asegurarCore() != nil else { return }
-        LlamadasSistema.compartido.llamar(limpio)
+        Task { @MainActor in
+            /** Si la app marca antes de abrir la pantalla del teléfono, las extensiones aún no están cargadas: se conecta primero */
+            if !MotorLlamadas.compartido.conTelefonos {
+                ApiFoncit.registro.info("llamar: se conectan las extensiones antes de marcar")
+                await MotorLlamadas.compartido.conectar()
+            }
+            guard MotorLlamadas.compartido.conTelefonos else {
+                ApiFoncit.registro.warning("llamar: no hay extensiones para marcar")
+                return
+            }
+            LlamadasSistema.compartido.llamar(limpio)
+        }
     }
 
     /// Al cerrar sesión en tu app: deja de recibir llamadas en este celular y borra los datos del teléfono

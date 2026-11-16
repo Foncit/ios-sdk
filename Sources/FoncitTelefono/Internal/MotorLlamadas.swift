@@ -175,6 +175,9 @@ final class MotorLlamadas: ObservableObject {
     }
 
     /// La extensión con la que se marca: la elegida o, si ya no está, la primera
+    /// Si ya están cargadas las extensiones en el motor (hace falta para poder marcar)
+    var conTelefonos: Bool { !telefonos.isEmpty }
+
     private func telefonoSeleccionado() -> [String: Any]? {
         telefonos.first { usuarioDe($0) == Almacen.seleccionada } ?? telefonos.first
     }

@@ -138,11 +138,15 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
 
     func llamadaTerminada(_ call: Call) {
         let id = call.callLog?.callId ?? ""
-        if sinSistema.remove(id) != nil {
-            MotorLlamadas.compartido.audioActivado(false)
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        guard let uuid = uuids.removeValue(forKey: id) else {
+            /** No la llevaba CallKit (se atendió o marcó desde la app): la app apaga el audio */
+            if !sinSistema.isEmpty {
+                sinSistema.removeAll()
+                MotorLlamadas.compartido.audioActivado(false)
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            }
+            return
         }
-        guard let uuid = uuids.removeValue(forKey: id) else { return }
         if colgadas.remove(uuid) != nil { return }
         let razon: CXCallEndedReason = (call.dir == .Incoming && call.duration == 0) ? .unanswered : .remoteEnded
         proveedor.reportCall(with: uuid, endedAt: Date(), reason: razon)
@@ -162,7 +166,24 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
     }
 
     func llamar(_ numero: String) {
-        pedir(CXStartCallAction(call: UUID(), handle: CXHandle(type: .phoneNumber, value: numero)))
+        let accion = CXStartCallAction(call: UUID(), handle: CXHandle(type: .phoneNumber, value: numero))
+        controlador.request(CXTransaction(action: accion)) { [weak self] error in
+            guard let error = error else { return }
+            /** iOS no dejó iniciar la llamada por su pantalla: se marca directo desde la app */
+            ApiFoncit.registro.warning("CallKit no inició la llamada (\(error.localizedDescription, privacy: .public)): se marca desde la app")
+            DispatchQueue.main.async { self?.llamarSinSistema(numero) }
+        }
+    }
+
+    /// Marca sin CallKit: la app activa el audio (lo que haría el sistema) y la llamada se ve en la pantalla de la app
+    private func llamarSinSistema(_ numero: String) {
+        guard let call = MotorLlamadas.compartido.marcar(numero) else {
+            ApiFoncit.registro.error("No se pudo marcar desde la app")
+            return
+        }
+        sinSistema.insert(call.callLog?.callId ?? "")
+        try? AVAudioSession.sharedInstance().setActive(true)
+        MotorLlamadas.compartido.audioActivado(true)
     }
 
     func contestar() {
@@ -216,6 +237,7 @@ final class LlamadasSistema: NSObject, CXProviderDelegate {
 
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         guard let call = MotorLlamadas.compartido.marcar(action.handle.value) else {
+            ApiFoncit.registro.error("CallKit pidió marcar pero el motor no pudo (sin extensión o número inválido)")
             action.fail()
             return
         }
